@@ -1,0 +1,38 @@
+{
+  "apiKeys": [
+    {
+      "apiKey": "eco_free_demo_key",
+      "keyId": "free-demo",
+      "plan": "free",
+      "requestLimitPerMinute": 12,
+      "active": true,
+      "createdAt": "2026-02-21T07:07:57.532Z",
+      "label": "Free demo"
+    },
+    {
+      "apiKey": "eco_pro_demo_key",
+      "keyId": "pro-demo",
+      "plan": "pro",
+      "requestLimitPerMinute": 90,
+      "active": true,
+      "createdAt": "2026-02-21T07:07:57.532Z",
+      "label": "Pro demo",
+      "lastUsedAt": "2026-02-21T10:42:20.882Z"
+    },
+    {
+      "apiKey": "eco_enterprise_demo_key",
+      "keyId": "ent-demo",
+      "plan": "enterprise",
+      "requestLimitPerMinute": 500,
+      "active": true,
+      "createdAt": "2026-02-21T07:07:57.532Z",
+      "label": "Enterprise demo"
+    }
+  ],
+  "rateLimits": {
+    "pro-demo:plan": {
+      "count": 1,
+      "resetAt": 1771670600889
+    }
+  }
+}

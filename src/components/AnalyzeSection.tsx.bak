@@ -1,0 +1,549 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
+import {
+  Satellite, Download, Share2, AlertTriangle,
+  CheckCircle, Loader2, MapPin, BarChart3, Leaf, Info,
+  Send, X, Zap, Globe, Eye, TrendingDown, TrendingUp,
+  Activity, Brain, MessageSquare,
+} from "lucide-react";
+import type { AnalysisResult, AnalysisRequest } from "@/types";
+
+const MapComponent = dynamic(() => import("./MapComponent"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-[#0a0e1a] rounded-xl">
+      <div className="text-center">
+        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-2" />
+        <p className="text-xs text-gray-500 font-mono">Loading map...</p>
+      </div>
+    </div>
+  ),
+});
+
+const ANALYSIS_TYPES = [
+  { value: "vegetation", label: "🌱 NDVI Vegetation" },
+  { value: "deforestation", label: "🌲 Deforestation" },
+  { value: "urban", label: "🏙️ Urban Growth" },
+  { value: "water", label: "💧 Water Bodies" },
+  { value: "agriculture", label: "🌾 Crop Health" },
+  { value: "fire", label: "🔥 Fire Detection" },
+];
+
+const TIME_RANGES = [
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+  { value: "90d", label: "3 months" },
+  { value: "180d", label: "6 months" },
+  { value: "365d", label: "1 year" },
+];
+
+const SATELLITES = [
+  { value: "sentinel2", label: "Sentinel-2 (10m)" },
+  { value: "landsat8", label: "Landsat-8 (30m)" },
+  { value: "sentinel1", label: "Sentinel-1 SAR" },
+  { value: "modis", label: "MODIS (250m)" },
+];
+
+const LOAD_STEPS = [
+  "🛰️ Connecting to Sentinel-2 API...",
+  "📡 Fetching satellite imagery...",
+  "🤖 Running AI classification model...",
+  "📊 Computing spectral indices...",
+  "⚡ Generating intelligence report...",
+];
+
+function NdviGauge({ value, category }: { value: number; category: string }) {
+  const pct = Math.round(value * 100);
+  const color = value < 0.2 ? "#ff4444" : value < 0.4 ? "#ff6b35" : value < 0.6 ? "#f0c040" : value < 0.8 ? "#39ff14" : "#00ff88";
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between items-center">
+        <span className="text-xs text-gray-400 font-mono uppercase tracking-wider">NDVI Score</span>
+        <span className="text-sm font-bold font-mono" style={{ color }}>{value.toFixed(3)} — {category}</span>
+      </div>
+      <div className="h-3 bg-[#0a0e1a] rounded-full overflow-hidden border border-gray-800">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg, #ff4444, #ff6b35, #f0c040, #39ff14, #00ff88)", transition: "width 1.5s ease", boxShadow: `0 0 10px ${color}80` }} />
+      </div>
+      <div className="flex justify-between text-xs text-gray-600 font-mono">
+        <span>0.0 Dead</span><span>0.5 OK</span><span>1.0 Lush</span>
+      </div>
+    </div>
+  );
+}
+
+function LandUseBar({ landUse }: { landUse: Record<string, number> }) {
+  const config: Record<string, { color: string; label: string; icon: string }> = {
+    forest:      { color: "#39ff14", label: "Forest",      icon: "🌲" },
+    agriculture: { color: "#f0c040", label: "Agriculture", icon: "🌾" },
+    urban:       { color: "#8b9cc8", label: "Urban",       icon: "🏙️" },
+    water:       { color: "#00d4ff", label: "Water",       icon: "💧" },
+    bare:        { color: "#c4915a", label: "Bare Land",   icon: "🪨" },
+  };
+  return (
+    <div className="space-y-3">
+      {Object.entries(landUse).map(([key, pct]) => (
+        <div key={key}>
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-gray-300">{config[key]?.icon} {config[key]?.label ?? key}</span>
+            <span className="font-mono font-bold" style={{ color: config[key]?.color }}>{pct}%</span>
+          </div>
+          <div className="h-2 bg-[#0a0e1a] rounded-full overflow-hidden border border-gray-800/50">
+            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: config[key]?.color, transition: "width 1.2s ease", boxShadow: `0 0 6px ${config[key]?.color}60` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface ChatMsg { role: "user" | "assistant"; content: string; }
+
+function AiChatPanel({ result }: { result: AnalysisResult | null }) {
+  const [messages, setMessages] = useState<ChatMsg[]>([{
+    role: "assistant",
+    content: result
+      ? `✅ Analysis complete for **${result.region}**! NDVI: ${result.ndvi} (${result.ndviCategory}). Ask me anything — deforestation risks, climate trends, crop recommendations.`
+      : "👋 Hi! I'm EcoScan AI. Run an analysis first, then ask me anything about the satellite results.",
+  }]);
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  useEffect(() => {
+    if (result) {
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `🛰️ New data for **${result.region}**!\nNDVI: **${result.ndvi}** (${result.ndviCategory}) | Forest: **${result.landUse.forest}%** | Change: **${result.changePercent > 0 ? "+" : ""}${result.changePercent}%**${result.alerts.length > 0 ? `\n⚠️ ${result.alerts.length} alert(s) detected!` : "\n✅ No critical alerts."}`,
+      }]);
+    }
+  }, [result]);
+
+  const send = async () => {
+    if (!input.trim() || thinking) return;
+    const userMsg: ChatMsg = { role: "user", content: input };
+    setMessages(prev => [...prev, userMsg]);
+    setInput("");
+    setThinking(true);
+    try {
+      const context = result ? `Satellite analysis data: Region: ${result.region}, Coordinates: ${result.coordinates.lat}°N ${result.coordinates.lon}°E, NDVI: ${result.ndvi} (${result.ndviCategory}), Land Use: Forest ${result.landUse.forest}%, Agriculture ${result.landUse.agriculture}%, Urban ${result.landUse.urban}%, Water ${result.landUse.water}%, Change: ${result.changePercent}%, Alerts: ${result.alerts.map(a => a.message).join("; ") || "None"}` : "No analysis data yet.";
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: input, context, history: messages.slice(-6) }),
+      });
+      const data = await resp.json();
+      setMessages(prev => [...prev, { role: "assistant", content: data.reply || "Sorry, try again." }]);
+    } catch {
+      setMessages(prev => [...prev, { role: "assistant", content: "⚠️ Connection error. Check HUGGINGFACE_API_KEY in .env.local" }]);
+    } finally {
+      setThinking(false);
+    }
+  };
+
+  const quickQ = result
+    ? ["Main risks?", "Explain NDVI", "Deforestation forecast", "Best crops here?", "Climate impact"]
+    : ["What is NDVI?", "How does it work?", "What can EcoScan detect?"];
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto space-y-3 pr-1 mb-3" style={{ maxHeight: "310px" }}>
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+            <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs ${msg.role === "assistant" ? "bg-cyan-500/20 text-cyan-400" : "bg-purple-500/20 text-purple-400"}`}>
+              {msg.role === "assistant" ? "🤖" : "👤"}
+            </div>
+            <div className={`max-w-[85%] px-3 py-2 rounded-xl text-xs leading-relaxed ${msg.role === "assistant" ? "bg-[#111827] border border-gray-800 text-gray-300" : "bg-cyan-500/10 border border-cyan-500/20 text-cyan-100"}`}>
+              {msg.content.split("\n").map((l, j) => <span key={j}>{l.replace(/\*\*(.*?)\*\*/g, "$1")}{j < msg.content.split("\n").length - 1 && <br />}</span>)}
+            </div>
+          </div>
+        ))}
+        {thinking && (
+          <div className="flex gap-2">
+            <div className="w-7 h-7 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs">🤖</div>
+            <div className="px-3 py-2 rounded-xl bg-[#111827] border border-gray-800">
+              <div className="flex gap-1">{[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: `${i*150}ms` }} />)}</div>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {quickQ.map(q => (
+          <button key={q} onClick={() => setInput(q)} className="px-2 py-1 rounded-lg text-xs border border-gray-700 text-gray-400 hover:border-cyan-500/40 hover:text-cyan-400 transition-all">{q}</button>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()}
+          placeholder="Ask anything about this region..." className="flex-1 px-3 py-2 bg-[#0a0e1a] border border-gray-700 hover:border-cyan-500/40 focus:border-cyan-500 focus:outline-none rounded-xl text-white text-xs placeholder-gray-600 transition-colors" />
+        <button onClick={send} disabled={!input.trim() || thinking} className="px-3 py-2 rounded-xl btn-primary disabled:opacity-50">
+          <Send className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LiveTicker() {
+  const events = [
+    "🔥 Fire detected — Amazon Basin, Brazil",
+    "🌊 Flood risk rising — Bangladesh delta +15%",
+    "🌱 Kazakhstan cropland NDVI improving",
+    "🌲 Deforestation alert — Borneo, Indonesia",
+    "💧 Aral Sea water level change detected",
+    "⚠️ Drought stress — Horn of Africa",
+  ];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => { const t = setInterval(() => setIdx(i => (i + 1) % events.length), 3000); return () => clearInterval(t); }, []);
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 bg-[#0a0e1a] border border-orange-500/20 rounded-xl">
+      <span className="text-xs text-orange-400 font-mono font-bold flex-shrink-0 flex items-center gap-1">
+        <Activity className="w-3.5 h-3.5" /> LIVE
+      </span>
+      <span className="w-1 h-1 rounded-full bg-orange-400 animate-pulse flex-shrink-0" />
+      <span className="text-xs text-gray-400 truncate">{events[idx]}</span>
+    </div>
+  );
+}
+
+function SpectralChart({ bands }: { bands: { name: string; value: number; unit: string }[]; }) {
+  return (
+    <div className="space-y-2.5">
+      {bands.map(band => (
+        <div key={band.name} className="flex items-center gap-3">
+          <span className="text-xs text-gray-500 font-mono w-24 flex-shrink-0">{band.name}</span>
+          <div className="flex-1 h-2 bg-[#0a0e1a] rounded-full overflow-hidden border border-gray-800/50">
+            <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-300" style={{ width: `${Math.min(band.value * 300, 100)}%`, transition: "width 1.5s ease" }} />
+          </div>
+          <span className="text-xs font-mono text-cyan-400 w-16 text-right">{band.value.toFixed(4)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function AnalyzeSection() {
+  const [region, setRegion] = useState("Almaty Region, Kazakhstan");
+  const [analysisType, setAnalysisType] = useState("vegetation");
+  const [timeRange, setTimeRange] = useState("30d");
+  const [satellite, setSatellite] = useState("sentinel2");
+  const [loading, setLoading] = useState(false);
+  const [loadStep, setLoadStep] = useState(0);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"results" | "chat" | "spectral">("results");
+  const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [mapMode, setMapMode] = useState<"click" | "draw">("click");
+
+  const handleMapClick = useCallback((lat: number, lon: number, place?: string) => {
+    setSelectedCoords({ lat, lon });
+    setRegion(place || `${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`);
+  }, []);
+
+  const handlePolygonDraw = useCallback((coords: number[][]) => {
+    if (coords.length > 0) {
+      const avgLat = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+      const avgLon = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+      setRegion(`Custom Region (${avgLat.toFixed(3)}°N, ${avgLon.toFixed(3)}°E)`);
+      setSelectedCoords({ lat: avgLat, lon: avgLon });
+    }
+  }, []);
+
+  const runAnalysis = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setLoadStep(0);
+    setActiveTab("results");
+
+    for (let i = 0; i < LOAD_STEPS.length; i++) {
+      await new Promise(r => setTimeout(r, 650));
+      setLoadStep(i + 1);
+    }
+
+    try {
+      const req: AnalysisRequest = {
+        region,
+        coordinates: selectedCoords || undefined,
+        analysisType: analysisType as AnalysisRequest["analysisType"],
+        timeRange: timeRange as AnalysisRequest["timeRange"],
+        satellite: satellite as AnalysisRequest["satellite"],
+      };
+      const resp = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      });
+      if (!resp.ok) { const e = await resp.json(); throw new Error(e.error || "Analysis failed"); }
+      const data: AnalysisResult = await resp.json();
+      setResult(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setLoading(false);
+      setLoadStep(0);
+    }
+  };
+
+  const downloadReport = () => {
+    if (!result) return;
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ecoscan-${Date.now()}.json`;
+    a.click();
+  };
+
+  return (
+    <section id="analyze" className="py-20 relative bg-[#04060f]" style={{ backgroundImage: "linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px)", backgroundSize: "60px 60px" }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/5 text-cyan-400 text-xs font-mono mb-4">
+            <Satellite className="w-3.5 h-3.5" /> LIVE SATELLITE ANALYSIS ENGINE
+          </div>
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-3" style={{ fontFamily: "Space Grotesk, sans-serif" }}>
+            Select Any Region on <span className="text-cyan-400" style={{ textShadow: "0 0 30px rgba(0,212,255,0.4)" }}>Earth</span>
+          </h2>
+          <p className="text-gray-400 max-w-xl mx-auto text-sm">Click the map, choose analysis type, and get AI-powered satellite insights instantly.</p>
+        </div>
+
+        <div className="mb-6 max-w-2xl mx-auto"><LiveTicker /></div>
+
+        <div className="grid xl:grid-cols-5 gap-6">
+          {/* LEFT: Map + Controls */}
+          <div className="xl:col-span-3 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                <button onClick={() => setMapMode("click")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${mapMode === "click" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" : "bg-[#111827] text-gray-400 border border-gray-700 hover:border-gray-600"}`}>
+                  <MapPin className="w-3.5 h-3.5" /> Click to Select
+                </button>
+                <button onClick={() => setMapMode("draw")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${mapMode === "draw" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" : "bg-[#111827] text-gray-400 border border-gray-700 hover:border-gray-600"}`}>
+                  <Globe className="w-3.5 h-3.5" /> Draw Region
+                </button>
+              </div>
+              {selectedCoords && (
+                <div className="text-xs font-mono text-cyan-400 bg-cyan-500/5 border border-cyan-500/20 px-3 py-1.5 rounded-lg">
+                  📍 {selectedCoords.lat.toFixed(3)}°N, {selectedCoords.lon.toFixed(3)}°E
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl overflow-hidden border border-cyan-500/20" style={{ height: "420px" }}>
+              <MapComponent onMapClick={handleMapClick} onPolygonDraw={handlePolygonDraw} selectedCoords={selectedCoords} mode={mapMode} result={result} />
+            </div>
+
+            <div className="card-space rounded-2xl p-5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                {[
+                  { label: "Analysis", value: analysisType, setter: setAnalysisType, opts: ANALYSIS_TYPES },
+                  { label: "Period", value: timeRange, setter: setTimeRange, opts: TIME_RANGES },
+                  { label: "Satellite", value: satellite, setter: setSatellite, opts: SATELLITES },
+                ].map(({ label, value, setter, opts }) => (
+                  <div key={label}>
+                    <label className="block text-xs text-gray-500 font-mono mb-1.5 uppercase tracking-wider">{label}</label>
+                    <select value={value} onChange={e => setter(e.target.value)} className="w-full px-3 py-2 bg-[#0a0e1a] border border-gray-700 hover:border-cyan-500/50 focus:border-cyan-500 focus:outline-none rounded-xl text-white text-xs transition-colors">
+                      {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                ))}
+                <div>
+                  <label className="block text-xs text-gray-500 font-mono mb-1.5 uppercase tracking-wider">Region</label>
+                  <input type="text" value={region} onChange={e => setRegion(e.target.value)} placeholder="Or type region..." className="w-full px-3 py-2 bg-[#0a0e1a] border border-gray-700 hover:border-cyan-500/50 focus:border-cyan-500 focus:outline-none rounded-xl text-white text-xs placeholder-gray-600 transition-colors" />
+                </div>
+              </div>
+
+              <button onClick={runAnalysis} disabled={loading || !region.trim()}
+                className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl font-bold text-sm transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ fontFamily: "Space Grotesk, sans-serif", background: loading ? "transparent" : "linear-gradient(135deg, #00d4ff 0%, #0099cc 100%)", color: loading ? "#00d4ff" : "#0a0e1a", border: loading ? "1px solid #00d4ff" : "none", boxShadow: !loading ? "0 0 30px rgba(0,212,255,0.35)" : "none" }}>
+                {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Satellite className="w-4 h-4" /> Launch AI Analysis <Zap className="w-4 h-4" /></>}
+              </button>
+
+              {loading && (
+                <div className="mt-4 space-y-1.5">
+                  {LOAD_STEPS.map((step, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      {i < loadStep ? <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" /> : i === loadStep ? <Loader2 className="w-3.5 h-3.5 text-cyan-400 animate-spin flex-shrink-0" /> : <div className="w-3.5 h-3.5 rounded-full border border-gray-700 flex-shrink-0" />}
+                      <span className={`text-xs font-mono ${i < loadStep ? "text-green-400" : i === loadStep ? "text-cyan-400" : "text-gray-700"}`}>{step}</span>
+                    </div>
+                  ))}
+                  <div className="mt-2 h-0.5 bg-[#0a0e1a] rounded-full overflow-hidden">
+                    <div className="h-full bg-cyan-400 rounded-full transition-all duration-700" style={{ width: `${(loadStep / LOAD_STEPS.length) * 100}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT: Tabs */}
+          <div className="xl:col-span-2 space-y-4">
+            <div className="flex gap-1 p-1 bg-[#111827] rounded-xl border border-gray-800">
+              {[
+                { id: "results", label: "Results", icon: <BarChart3 className="w-3.5 h-3.5" /> },
+                { id: "chat", label: "AI Chat", icon: <Brain className="w-3.5 h-3.5" /> },
+                { id: "spectral", label: "Spectral", icon: <Activity className="w-3.5 h-3.5" /> },
+              ].map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all ${activeTab === tab.id ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30" : "text-gray-500 hover:text-gray-300"}`}
+                  style={{ fontFamily: "Space Grotesk, sans-serif" }}>
+                  {tab.icon}{tab.label}
+                  {tab.id === "chat" && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                </button>
+              ))}
+            </div>
+
+            <div className="card-space rounded-2xl p-5" style={{ minHeight: "560px" }}>
+              {/* RESULTS TAB */}
+              {activeTab === "results" && (
+                <>
+                  {!result && !loading && !error && (
+                    <div className="h-full flex flex-col items-center justify-center py-16 text-center">
+                      <div className="w-16 h-16 rounded-full border border-cyan-500/20 bg-cyan-500/5 flex items-center justify-center mb-4">
+                        <Eye className="w-7 h-7 text-cyan-400/30" />
+                      </div>
+                      <p className="text-gray-500 text-sm mb-1">Click on the map to pick a location</p>
+                      <p className="text-gray-700 text-xs font-mono">then hit "Launch AI Analysis"</p>
+                      <div className="mt-6 grid grid-cols-2 gap-2 w-full max-w-xs">
+                        {["🌱 NDVI score", "🌲 Forest %", "💧 Water %", "⚠️ Alerts"].map(f => (
+                          <div key={f} className="text-xs text-gray-700 px-3 py-2 rounded-lg border border-gray-800 text-center">{f}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {error && (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-orange-400 mb-3" />
+                      <p className="text-orange-400 font-semibold mb-2 text-sm">Analysis Failed</p>
+                      <p className="text-gray-500 text-xs">{error}</p>
+                    </div>
+                  )}
+                  {result && (
+                    <div className="space-y-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-bold text-white text-sm" style={{ fontFamily: "Space Grotesk, sans-serif" }}>{result.region}</h3>
+                          <p className="text-xs text-gray-500 font-mono mt-0.5">{new Date(result.timestamp).toLocaleString()} · {result.processingTime}s</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle className="w-4 h-4 text-green-400" />
+                          <span className="text-xs text-green-400 font-mono">{result.confidence}% confidence</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="card-space rounded-xl p-3">
+                          <p className="text-xs text-gray-500 mb-1">NDVI</p>
+                          <p className="font-bold font-mono text-lg" style={{ color: result.ndvi > 0.6 ? "#39ff14" : result.ndvi > 0.4 ? "#f0c040" : "#ff6b35" }}>{result.ndvi.toFixed(3)}</p>
+                          <p className="text-xs text-gray-600">{result.ndviCategory}</p>
+                        </div>
+                        <div className="card-space rounded-xl p-3">
+                          <p className="text-xs text-gray-500 mb-1">Change</p>
+                          <p className="font-bold font-mono text-lg flex items-center gap-1" style={{ color: result.changePercent >= 0 ? "#39ff14" : "#ff6b35" }}>
+                            {result.changePercent >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                            {result.changePercent >= 0 ? "+" : ""}{result.changePercent}%
+                          </p>
+                          <p className="text-xs text-gray-600">vs prev. period</p>
+                        </div>
+                      </div>
+
+                      <NdviGauge value={result.ndvi} category={result.ndviCategory} />
+                      <div>
+                        <p className="text-xs text-gray-500 font-mono uppercase tracking-wider mb-2">Land Classification</p>
+                        <LandUseBar landUse={result.landUse} />
+                      </div>
+
+                      {result.alerts.length > 0 && (
+                        <div className="space-y-2">
+                          {result.alerts.map((alert, i) => (
+                            <div key={i} className="flex items-start gap-2 p-2.5 rounded-xl border text-xs"
+                              style={{ borderColor: alert.severity === "critical" ? "rgba(255,68,68,0.4)" : "rgba(255,107,53,0.3)", background: alert.severity === "critical" ? "rgba(255,68,68,0.05)" : "rgba(255,107,53,0.05)" }}>
+                              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: alert.severity === "critical" ? "#ff4444" : "#ff6b35" }} />
+                              <span className="text-gray-300">{alert.message}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-[#0a0e1a] border border-gray-800/50">
+                        <Info className="w-3.5 h-3.5 text-gray-600" />
+                        <span className="text-xs text-gray-600 font-mono">{result.modelInfo.source}</span>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button onClick={downloadReport} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl btn-outline text-xs font-semibold" style={{ fontFamily: "Space Grotesk, sans-serif" }}>
+                          <Download className="w-3.5 h-3.5" /> Download
+                        </button>
+                        <button onClick={() => navigator.clipboard.writeText(JSON.stringify(result, null, 2))} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl btn-outline text-xs font-semibold" style={{ fontFamily: "Space Grotesk, sans-serif" }}>
+                          <Share2 className="w-3.5 h-3.5" /> Copy JSON
+                        </button>
+                        <button onClick={() => setActiveTab("chat")} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-purple-500/10 border border-purple-500/30 text-purple-400 hover:bg-purple-500/20 transition-all" style={{ fontFamily: "Space Grotesk, sans-serif" }}>
+                          <MessageSquare className="w-3.5 h-3.5" /> Ask AI
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* CHAT TAB */}
+              {activeTab === "chat" && (
+                <div className="flex flex-col h-full">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                      <Brain className="w-4 h-4 text-cyan-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white" style={{ fontFamily: "Space Grotesk, sans-serif" }}>EcoScan AI Assistant</p>
+                      <p className="text-xs text-green-400 font-mono flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" /> Online · Ask anything about this region
+                      </p>
+                    </div>
+                  </div>
+                  <AiChatPanel result={result} />
+                </div>
+              )}
+
+              {/* SPECTRAL TAB */}
+              {activeTab === "spectral" && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="w-4 h-4 text-cyan-400" />
+                    <p className="text-sm font-bold text-white" style={{ fontFamily: "Space Grotesk, sans-serif" }}>Spectral Band Analysis</p>
+                  </div>
+                  {result ? (
+                    <>
+                      <SpectralChart bands={result.spectralBands} />
+                      <div className="p-3 bg-[#0a0e1a] rounded-xl border border-gray-800 text-xs text-gray-400 space-y-1">
+                        <p>🛰️ <span className="text-gray-300">Satellite:</span> {result.satellite.toUpperCase()}</p>
+                        <p>🤖 <span className="text-gray-300">Model:</span> {result.modelInfo.name}</p>
+                        <p>📊 <span className="text-gray-300">Accuracy:</span> {result.modelInfo.accuracy}%</p>
+                        <p>⏱️ <span className="text-gray-300">Processing:</span> {result.processingTime}s</p>
+                      </div>
+                      <div className="p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
+                        <p className="text-xs text-cyan-400 font-semibold mb-2">NDVI Formula</p>
+                        <p className="text-xs font-mono text-gray-400">
+                          NDVI = (NIR - Red) / (NIR + Red)<br/>
+                          = ({result.spectralBands[0]?.value.toFixed(4)} - {result.spectralBands[1]?.value.toFixed(4)}) / (...)<br/>
+                          <span className="text-cyan-400 font-bold">= {result.ndvi.toFixed(4)}</span>
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <Activity className="w-10 h-10 text-gray-700 mb-3" />
+                      <p className="text-gray-500 text-sm">Run analysis to see spectral data</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
