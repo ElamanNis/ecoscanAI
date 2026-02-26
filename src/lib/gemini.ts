@@ -52,11 +52,11 @@ function simulateNDVI(lat: number, lon: number, analysisType: string): number {
 // Land use simulation based on biome
 function simulateLandUse(lat: number, lon: number): Record<string, number> {
   const absLat = Math.abs(lat);
-  const isArid = lon > 45 && lon < 90 && lat > 35 && lat < 55;да
+  const isArid = lon > 45 && lon < 90 && lat > 35 && lat < 55;
   const isDesert = lon > 20 && lon < 55 && lat > 15 && lat < 32;
   const isTropical = absLat < 15;
   const isBoreal = absLat > 55 && absLat < 68;
-  const isUrban = оMath.random() > 0.7;
+  const isUrban = Math.random() > 0.7;
 
   let landUse: Record<string, number>;
 

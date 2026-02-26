@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { validateAnalysisRequest } from "@/lib/server/validation";
+import { getSupabaseServer } from "@/lib/supabase/server";
+import type { SubscriptionTier } from "@/lib/supabase/types";
 import { generateJsonWithFallback } from "@/lib/server/ai";
 
 type Timed<T> = { ok: boolean; data: T | null; latency: number; error?: string };
@@ -130,6 +132,28 @@ function indices(input: { precipDay: number; temp: number; solar: number; humidi
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
   try {
+    const supabase = getSupabaseServer();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+    const { data: profile } = await supabase.from("profiles").select("id,full_name,subscription_tier,api_usage_count").eq("id", userId).maybeSingle();
+    const tier = ((profile as any)?.subscription_tier || "free") as SubscriptionTier;
+    const now = new Date();
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    const { count } = await supabase
+      .from("scans_history")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("created_at", startOfMonth);
+    const monthlyCount = count || 0;
+    const limits: Record<SubscriptionTier, number> = { free: 5, standard: 50, premium: 1_000_000 };
+    if (monthlyCount >= limits[tier]) {
+      return NextResponse.json({ error: "Monthly analysis limit reached" }, { status: 429 });
+    }
     const body: unknown = await req.json();
     const checked = validateAnalysisRequest(body);
     if (!checked.valid) return NextResponse.json({ error: checked.error }, { status: 400 });
@@ -365,7 +389,7 @@ Location: ${displayName}. NDVI=${idx.ndvi}, EVI=${idx.evi}, SAVI=${idx.savi}, ND
       confidence: Math.round(([nasa.ok, meteo.ok, archive.ok, stac.ok, elev.ok, rev.ok, gem.ok].filter(Boolean).length / 7) * 100),
     };
 
-    return NextResponse.json({
+    const responsePayload = {
       id: full.id,
       region: full.location.displayName,
       coordinates: { lat: full.location.lat, lon: full.location.lon },
@@ -411,7 +435,22 @@ Location: ${displayName}. NDVI=${idx.ndvi}, EVI=${idx.evi}, SAVI=${idx.savi}, ND
         scenes: full.satellite.scenes.map((s) => ({ id: s.id, datetime: s.date, collection: "SENTINEL-2", cloudCover: s.cloudCoverPct ?? undefined, platform: s.mission })),
       },
       full,
+    };
+
+    await (supabase as any).from("scans_history").insert({
+      user_id: userId,
+      region: responsePayload.region,
+      ndvi: responsePayload.ndvi,
+      ndvi_category: responsePayload.ndviCategory,
+      analysis_type: responsePayload.analysisType,
+      payload: responsePayload,
     });
+    await (supabase as any).rpc("increment_api_usage", { user_id_arg: userId }).catch(async () => {
+      const current = ((profile as any)?.api_usage_count || 0) as number;
+      await (supabase as any).from("profiles").update({ api_usage_count: current + 1 }).eq("id", userId);
+    });
+
+    return NextResponse.json(responsePayload);
   } catch (e) {
     return NextResponse.json({ error: `Analysis failed: ${e instanceof Error ? e.message : "Unknown error"}` }, { status: 500 });
   }

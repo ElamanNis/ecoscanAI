@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDbStatus } from "@/lib/server/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const db = await getDbStatus();
   return NextResponse.json({
