@@ -1,6 +1,7 @@
 "use client";
 
 import type { AnalysisResult, FullAnalysisResult } from "@/types";
+import { useEffect, useState } from "react";
 import DataSourceBadgeList from "./DataSourceBadgeList";
 import ForecastPanel from "./ForecastPanel";
 
@@ -60,8 +61,19 @@ function BasicFallback({ result }: { result: AnalysisResult }) {
 }
 
 export default function ResultsPanel({ result, onAskAI, onDownload, onCopy }: Props) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const full = result.full as FullAnalysisResult | undefined;
   if (!full) return <BasicFallback result={result} />;
+  if (!isMounted) {
+    return (
+      <div className="card p-4">
+        <p className="text-sm text-[#90a8b8]">Loading…</p>
+      </div>
+    );
+  }
 
   const insights = Array.isArray(full.gemini.insights)
     ? full.gemini.insights.map((x) => String(x))
@@ -96,9 +108,7 @@ export default function ResultsPanel({ result, onAskAI, onDownload, onCopy }: Pr
               {flag(full.location.countryCode)} {full.location.displayName}
             </h3>
             <p className="text-sm text-[#8ea5b6]">{textValue(full.gemini.headline)}</p>
-            <p className="mt-1 text-xs text-[#6d8698]">
-              {new Date(full.timestamp).toLocaleString()} | processing {full.processingMs} ms
-            </p>
+            <p className="mt-1 text-xs text-[#6d8698]">{new Date(full.timestamp).toLocaleString()} | processing {full.processingMs} ms</p>
           </div>
           <div className="text-right">
             <div

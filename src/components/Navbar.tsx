@@ -3,11 +3,27 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function Navbar() {
   const { lang, setLang, t } = useI18n();
   const [solid, setSolid] = useState(false);
   const [open, setOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [tier, setTier] = useState<string | null>(null);
+  useEffect(() => {
+    const supabase = createClientComponentClient();
+    supabase.auth.getSession().then((res) => {
+      const ok = Boolean(res.data.session?.user);
+      setLoggedIn(ok);
+      if (ok) {
+        fetch("/api/me")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((me) => setTier(me?.tier || null))
+          .catch(() => {});
+      }
+    });
+  }, []);
   const links = [
     { label: t("navDashboard"), href: "#hero" },
     { label: t("navAnalyze"), href: "#analyze" },
@@ -48,6 +64,11 @@ export default function Navbar() {
         </div>
 
         <div className="hidden items-center gap-2 md:flex">
+          {tier && (
+            <span className="rounded-lg border border-[rgba(0,200,255,0.25)] bg-[rgba(0,200,255,0.08)] px-3 py-1 text-xs text-[#00c8ff] capitalize">
+              {tier}
+            </span>
+          )}
           <div className="rounded-lg border border-[rgba(255,255,255,0.1)] bg-[#08121d] p-1">
             {(["ru", "en", "kz"] as const).map((code) => (
               <button
@@ -61,9 +82,25 @@ export default function Navbar() {
               </button>
             ))}
           </div>
-          <Link href="#docs" className="btn-primary px-5 py-2 text-sm">
-            {t("navGetApi")}
-          </Link>
+          {loggedIn ? (
+            <>
+              <Link href="/dashboard" className="btn-ghost px-4 py-2 text-sm">
+                Кабинет
+              </Link>
+              <form action="/auth/signout" method="post">
+                <button className="btn-primary px-4 py-2 text-sm">Выйти</button>
+              </form>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="btn-ghost px-4 py-2 text-sm">
+                Войти
+              </Link>
+              <Link href="/register" className="btn-primary px-4 py-2 text-sm">
+                Регистрация
+              </Link>
+            </>
+          )}
         </div>
 
         <button className="text-[#9cb2c2] md:hidden" onClick={() => setOpen((v) => !v)} aria-label="menu">
@@ -83,6 +120,27 @@ export default function Navbar() {
               {item.label}
             </Link>
           ))}
+          {loggedIn ? (
+            <>
+              <Link href="/dashboard" className="mt-2 block py-2 text-sm text-[#9cb2c2]" onClick={() => setOpen(false)}>
+                Кабинет
+              </Link>
+              <form action="/auth/signout" method="post" className="mt-2">
+                <button className="w-full rounded-lg border border-[rgba(0,200,255,0.2)] px-3 py-2 text-sm text-[#cfe0ea]">
+                  Выйти
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="mt-2 block py-2 text-sm text-[#9cb2c2]" onClick={() => setOpen(false)}>
+                Войти
+              </Link>
+              <Link href="/register" className="mt-2 block py-2 text-sm text-[#9cb2c2]" onClick={() => setOpen(false)}>
+                Регистрация
+              </Link>
+            </>
+          )}
         </div>
       )}
     </nav>

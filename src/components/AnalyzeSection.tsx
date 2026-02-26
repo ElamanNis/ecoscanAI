@@ -1,8 +1,8 @@
 "use client";
 
-import type { AnalysisRequest, AnalysisResult, PlanResponse } from "@/types";
 import dynamic from "next/dynamic";
-import { useCallback, useMemo, useState } from "react";
+import type { AnalysisRequest, AnalysisResult, PlanResponse } from "@/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ChatPanel from "./ChatPanel";
 import ResultsPanel from "./ResultsPanel";
 import { useI18n } from "@/lib/i18n";
@@ -36,6 +36,24 @@ const SATELLITES = [
 
 export default function AnalyzeSection() {
   const { t } = useI18n();
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  const [limit, setLimit] = useState<{ used: number; max: number } | null>(null);
+  useEffect(() => {
+    fetch("/api/me")
+      .then(async (r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
+      .then((data) => {
+        if (data && typeof data.monthlyLimit === "number") {
+          setLimit({ used: data.monthlyUsage || 0, max: data.monthlyLimit });
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [region, setRegion] = useState("Almaty Region, Kazakhstan");
   const [analysisType, setAnalysisType] = useState<AnalysisRequest["analysisType"]>("vegetation");
   const [timeRange, setTimeRange] = useState<AnalysisRequest["timeRange"]>("30d");
@@ -225,9 +243,14 @@ export default function AnalyzeSection() {
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#08121d] px-3 py-2 text-sm outline-none" placeholder={t("goalPlaceholder")} />
               </div>
 
-              <button onClick={run} disabled={loading || !region.trim()} className="btn-primary w-full py-3 text-sm">
-                {loading ? t("runningAnalysis") : t("runAnalysis")}
+              <button onClick={run} disabled={loading || !region.trim() || (limit !== null && limit.used >= limit.max)} className="btn-primary w-full py-3 text-sm">
+                {limit !== null && limit.used >= limit.max ? "Лимит исчерпан" : loading ? t("runningAnalysis") : t("runAnalysis")}
               </button>
+              {limit && (
+                <div className="text-center text-xs text-[#8ea6b7]">
+                  {limit.used}/{limit.max} анализов в этом месяце
+                </div>
+              )}
 
               {loading && (
                 <div className="space-y-2">
@@ -257,7 +280,7 @@ export default function AnalyzeSection() {
             <div className="card min-h-[640px] p-4">
               {error && <p className="rounded-lg border border-[rgba(255,61,87,0.3)] bg-[rgba(255,61,87,0.12)] p-3 text-sm text-[#ff9cb0]">{error}</p>}
 
-              {tab === "results" && result && (
+              {tab === "results" && result && isMounted && (
                 <ResultsPanel result={result} onAskAI={() => setTab("ai")} onDownload={downloadResult} onCopy={() => navigator.clipboard.writeText(JSON.stringify(result, null, 2))} />
               )}
               {tab === "results" && !result && !error && (

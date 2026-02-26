@@ -3,9 +3,9 @@
 import { useI18n } from "@/lib/i18n";
 
 const PLANS = [
-  { name: "Free", price: "$0", desc: "10 requests/month, basic NDVI, CSV export", featured: false },
-  { name: "Pro", price: "$199/mo", desc: "Unlimited requests, all analyses, API access, PDF reports", featured: true },
-  { name: "Enterprise", price: "Contact", desc: "Custom volume, priority support, on-premise option", featured: false },
+  { name: "Free", price: "$0/mo", desc: "5 analyses per month, basic NDVI", featured: false },
+  { name: "Standard", price: "$20/mo", desc: "50 analyses, full spectral, scan history", featured: true },
+  { name: "Premium", price: "$100/mo", desc: "Unlimited, priority AI, export PDF reports", featured: false },
 ];
 
 export default function PricingSection() {
@@ -28,8 +28,8 @@ export default function PricingSection() {
               <h3 className="font-['Syne'] text-2xl font-bold text-white">{plan.name}</h3>
               <p className="mt-1 font-['JetBrains_Mono'] text-xl text-[#00c8ff]">{plan.price}</p>
               <p className="mt-2 text-sm text-[#93acbc]">{plan.desc}</p>
-              <button className={`mt-5 w-full py-2 text-sm ${plan.featured ? "btn-primary" : "btn-ghost"}`}>
-                {plan.name === "Enterprise" ? "Talk to Sales" : "Get Started"}
+              <button className={`mt-5 w-full py-2 text-sm ${plan.featured ? "btn-primary" : "btn-ghost"}`} onClick={() => location.assign("/register")}>
+                {plan.name === "Premium" ? "Upgrade" : "Get Started"}
               </button>
             </article>
           ))}

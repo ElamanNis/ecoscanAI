@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveApiClient } from "@/lib/server/auth";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 import { generateMonthlyPlan } from "@/lib/server/plan";
+import { getSupabaseServer } from "@/lib/supabase/server";
 import type { AnalysisResult } from "@/types";
 
 function isAnalysisResult(payload: unknown): payload is AnalysisResult {
@@ -21,15 +22,24 @@ export async function POST(request: NextRequest) {
     const apiKey = request.headers.get("authorization")?.replace("Bearer ", "").trim() || null;
     const client = await resolveApiClient(apiKey);
     if (!client) {
-      return NextResponse.json(
-        { error: "Unauthorized. Provide a valid API key in Authorization: Bearer <key>" },
-        { status: 401 }
-      );
+      const supabase = getSupabaseServer();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) {
+        return NextResponse.json(
+          { error: "Unauthorized. Provide API key or sign in" },
+          { status: 401 }
+        );
+      }
     }
 
-    const rate = await checkRateLimit(`${client.keyId}:plan`, client.requestLimitPerMinute);
-    if (!rate.ok) {
-      return NextResponse.json({ error: "Rate limit exceeded", retryAfterSec: rate.retryAfterSec }, { status: 429 });
+    let rate: { ok: true; remaining: number } | { ok: false; retryAfterSec: number } | null = null;
+    if (client) {
+      rate = await checkRateLimit(`${client.keyId}:plan`, client.requestLimitPerMinute);
+      if (!rate.ok) {
+        return NextResponse.json({ error: "Rate limit exceeded", retryAfterSec: rate.retryAfterSec }, { status: 429 });
+      }
     }
 
     const payload = (await request.json()) as { analysis?: unknown; months?: number; goal?: string };
@@ -41,12 +51,14 @@ export async function POST(request: NextRequest) {
     const goal = typeof payload.goal === "string" ? payload.goal.trim().slice(0, 250) : undefined;
     const plan = await generateMonthlyPlan(payload.analysis, months, goal);
 
-    return NextResponse.json(
-      { ...plan, meta: { apiVersion: "v1", plan: client.plan, remainingPerMinute: rate.remaining } },
-      { headers: { "x-rate-limit-remaining": String(rate.remaining), "x-api-plan": client.plan } }
-    );
+    return NextResponse.json({ ...plan, meta: { apiVersion: "v1", plan: client ? client.plan : "free", remainingPerMinute: client ? (rate as any).remaining : null } }, { headers: client && rate ? { "x-rate-limit-remaining": String((rate as any).remaining), "x-api-plan": client.plan } : {} });
   } catch (error) {
-    console.error("V1 plan error:", error);
+    const err = error as unknown;
+    if (err instanceof Error) {
+      console.error("V1 plan error:", { name: err.name, message: err.message, stack: err.stack });
+    } else {
+      console.error("V1 plan error (non-Error):", err);
+    }
     return NextResponse.json({ error: "Failed to generate monthly plan" }, { status: 500 });
   }
 }
