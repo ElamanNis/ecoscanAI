@@ -4,6 +4,26 @@ import { getSupabaseServer } from "@/lib/supabase/server";
 
 export async function getApiClientByKey(apiKey: string): Promise<ApiClientContext | null> {
   const supabase = getSupabaseServer();
+  // #region agent log
+  fetch("http://127.0.0.1:7425/ingest/6e171a64-100c-471f-a0f7-68ec2fd33586", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "7da2b2",
+    },
+    body: JSON.stringify({
+      sessionId: "7da2b2",
+      runId: "initial",
+      hypothesisId: "H1",
+      location: "src/lib/server/db.ts:getApiClientByKey",
+      message: "getApiClientByKey called",
+      data: {
+        apiKeyLength: apiKey.length,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   const res = await (supabase as any)
     .from("api_keys")
     .select("key_id, plan, request_limit_per_minute, active")
@@ -25,6 +45,32 @@ export async function consumeRateLimit(keyId: string, maxRequests: number): Prom
   const now = Date.now();
   const windowMs = 60_000;
   const { data } = await (supabase as any).from("rate_limits").select("*").eq("key_id", keyId).maybeSingle();
+  // #region agent log
+  fetch("http://127.0.0.1:7425/ingest/6e171a64-100c-471f-a0f7-68ec2fd33586", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "7da2b2",
+    },
+    body: JSON.stringify({
+      sessionId: "7da2b2",
+      runId: "initial",
+      hypothesisId: "H2",
+      location: "src/lib/server/db.ts:consumeRateLimit",
+      message: "consumeRateLimit loaded row",
+      data: {
+        hasRow: !!data,
+        keyId,
+        now,
+        resetAt: data?.reset_at ?? null,
+        resetAtType: data ? typeof (data as any).reset_at : null,
+        count: data?.count ?? null,
+        maxRequests,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   if (!data || now >= data.reset_at) {
     await (supabase as any)
       .from("rate_limits")
