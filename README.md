@@ -1,6 +1,6 @@
-# EcoScan AI — Satellite Earth Intelligence (Next.js + Supabase + Stripe)
+# EcoScan AI - Satellite Earth Intelligence (Next.js + Supabase + Stripe)
 
-EcoScan AI — production‑oriented web‑приложение для анализа любой точки на Земле:
+EcoScan AI - production‑oriented web‑приложение для анализа любой точки на Земле:
 карта/полигон → спутниковые сцены + погода/архив → индексы (NDVI/EVI/NDWI/…) → риск‑оценка → AI‑отчёт и рекомендации.
 
 ## Возможности
@@ -124,18 +124,18 @@ https://<your-domain>/api/billing/webhook
 ### UI
 
 - `src/app/page.tsx` — лендинг (секции)
-- `src/components/AnalyzeSection.tsx` — главный анализ, gating по авторизации
-- `src/components/ResultsPanel.tsx` — отображение результата
-- `src/components/PricingSection.tsx` — тарифы и кнопка Upgrade
-- `src/components/AuthModal.tsx` — login/register модалка
-- `src/app/dashboard/page.tsx` — кабинет/история/лимиты/кнопки оплаты
+- `src/components/AnalyzeSection.tsx` - главный анализ, gating по авторизации
+- `src/components/ResultsPanel.tsx` - отображение результата
+- `src/components/PricingSection.tsx` - тарифы и кнопка Upgrade
+- `src/components/AuthModal.tsx` - login/register модалка
+- `src/app/dashboard/page.tsx`- кабинет/история/лимиты/кнопки оплаты
 
 ### API (internal)
 
-- `GET src/app/api/me/route.ts` — tier/лимиты/usage за месяц (считает по `scans_history`)
-- `POST src/app/api/analyze/route.ts` — расчёты + AI отчёт + запись в историю
-- `POST src/app/api/chat/route.ts` — чат по результату
-- `GET src/app/api/health/route.ts` — health + env диагностика
+- `GET src/app/api/me/route.ts` - tier/лимиты/usage за месяц (считает по `scans_history`)
+- `POST src/app/api/analyze/route.ts` - расчёты + AI отчёт + запись в историю
+- `POST src/app/api/chat/route.ts` - чат по результату
+- `GET src/app/api/health/route.ts` - health + env диагностика
 
 ### Billing (Stripe)
 
@@ -145,10 +145,10 @@ https://<your-domain>/api/billing/webhook
 
 ### Supabase
 
-- `supabase/SETUP.sql` — schema + RLS + trigger
-- `src/lib/supabase/server.ts` — server client (cookies)
-- `src/lib/supabase/admin.ts` — admin client (service role, для webhook)
-- `middleware.ts` — sync Supabase cookies/session для App Router
+- `supabase/SETUP.sql` - schema + RLS + trigger
+- `src/lib/supabase/server.ts` - server client (cookies)
+- `src/lib/supabase/admin.ts` - admin client (service role, для webhook)
+- `middleware.ts` - sync Supabase cookies/session для App Router
 
 ---
 
@@ -172,7 +172,7 @@ https://<your-domain>/api/billing/webhook
 
 ### Signup возвращает `500` (Supabase `Database error saving new user`)
 
-Почти всегда причина — DB trigger/таблица `profiles`/политики.
+Почти всегда причина - DB trigger/таблица `profiles`/политики.
 
 Что делать:
 1. Выполни `supabase/SETUP.sql` целиком ещё раз (он safe‑to‑rerun).
