@@ -18,12 +18,14 @@ export default function AuthModal({ open, defaultTab = "register", onClose, onAu
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setTab(defaultTab);
     setError(null);
+    setSuccess(null);
   }, [open, defaultTab]);
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function AuthModal({ open, defaultTab = "register", onClose, onAu
     e.preventDefault();
     if (loading) return;
     setError(null);
+    setSuccess(null);
     setLoading(true);
     try {
       const supabase = createClientComponentClient();
@@ -56,6 +59,11 @@ export default function AuthModal({ open, defaultTab = "register", onClose, onAu
       if (error) throw new Error(error.message);
       // Profile row should be created by Supabase trigger (see `supabase/SETUP.sql`).
       // Avoid client-side upsert here: it can fail if RLS/schema isn't ready and breaks onboarding.
+      if (!data.session) {
+        setSuccess("Аккаунт создан. Подтвердите email: вам пришло письмо со ссылкой подтверждения (проверьте Спам).");
+        setTab("login");
+        return;
+      }
       onAuthed();
       onClose();
     } catch (err) {
@@ -115,6 +123,11 @@ export default function AuthModal({ open, defaultTab = "register", onClose, onAu
             placeholder="Пароль"
             className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#0c1420] px-3 py-2 text-sm text-white outline-none"
           />
+          {success && (
+            <p className="rounded-lg border border-[rgba(0,255,135,0.25)] bg-[rgba(0,255,135,0.08)] p-3 text-sm text-[#9dd6b7]">
+              {success}
+            </p>
+          )}
           {error && <p className="text-sm text-[#ff9cb0]">{error}</p>}
           <button type="submit" disabled={loading || !email.trim() || !password.trim()} className="btn-primary w-full py-2 text-sm">
             {loading ? "Подождите..." : tab === "login" ? "Войти" : "Создать аккаунт"}
