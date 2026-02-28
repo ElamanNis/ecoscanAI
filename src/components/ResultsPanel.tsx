@@ -40,6 +40,20 @@ function riskBar(score: number) {
   return `${clamped}%`;
 }
 
+function factorTitle(key: string) {
+  const m: Record<string, string> = {
+    drought: "Drought",
+    heat: "Heat",
+    flood: "Flood",
+    fire: "Fire",
+    frost: "Frost",
+    erosion: "Erosion",
+    waterStress: "Water Stress",
+    soilDegradation: "Soil Degradation",
+  };
+  return m[key] || key;
+}
+
 function flag(code: string) {
   if (!code || code.length !== 2) return "🌍";
   return code
@@ -98,6 +112,13 @@ export default function ResultsPanel({ result, onAskAI, onDownload, onCopy }: Pr
     ["Bare", full.landUse.bare, "#c4905a"],
   ] as const;
 
+  const factors = Object.entries(full.risks.factors || {}).map(([k, v]) => ({
+    key: k,
+    score: Number((v as any)?.score) || 0,
+    detail: textValue((v as any)?.detail),
+  }));
+  factors.sort((a, b) => b.score - a.score);
+
   return (
     <div className="space-y-4">
       <section className="card p-4">
@@ -120,6 +141,58 @@ export default function ResultsPanel({ result, onAskAI, onDownload, onCopy }: Pr
             <p className="mt-1 text-xs text-[#8ea5b6]">{full.confidence}% confidence</p>
           </div>
         </div>
+      </section>
+
+      <section className="card p-4">
+        <p className="mb-2 font-['JetBrains_Mono'] text-[11px] uppercase tracking-[0.2em] text-[#00c8ff]">Risk Breakdown</p>
+        <div className="grid gap-3 md:grid-cols-2">
+          {factors.map((fct) => (
+            <div key={fct.key} className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#cfe0ea]">{factorTitle(fct.key)}</span>
+                <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{fct.score}/100</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-[#142231]">
+                <div className="h-full rounded-full bg-gradient-to-r from-[#00c8ff] to-[#00ff87]" style={{ width: riskBar(fct.score) }} />
+              </div>
+              <p className="mt-2 text-xs text-[#8ea7b8]">{fct.detail}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="card p-4">
+        <p className="mb-2 font-['JetBrains_Mono'] text-[11px] uppercase tracking-[0.2em] text-[#00c8ff]">Indices</p>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3 text-sm text-[#cfe0ea]">
+            NDVI <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{full.indices.ndvi.toFixed(3)}</span> ({full.indices.ndviHealth.category})
+          </div>
+          <div className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3 text-sm text-[#cfe0ea]">
+            EVI <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{full.indices.evi.toFixed(3)}</span>
+          </div>
+          <div className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3 text-sm text-[#cfe0ea]">
+            SAVI <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{full.indices.savi.toFixed(3)}</span>
+          </div>
+          <div className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3 text-sm text-[#cfe0ea]">
+            NDWI <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{full.indices.ndwi.toFixed(3)}</span>
+          </div>
+          <div className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3 text-sm text-[#cfe0ea]">
+            Drought <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{f(full.indices.droughtIndex, 2)}</span>
+          </div>
+          <div className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3 text-sm text-[#cfe0ea]">
+            Fire risk <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{f(full.indices.fireRisk, 0)}</span>/100
+          </div>
+          <div className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3 text-sm text-[#cfe0ea]">
+            Flood risk <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{f(full.indices.floodRisk, 0)}</span>/100
+          </div>
+          <div className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3 text-sm text-[#cfe0ea]">
+            Carbon <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{f(full.indices.carbonProxy, 0)}</span>
+          </div>
+          <div className="rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#08121d] p-3 text-sm text-[#cfe0ea]">
+            LST proxy <span className="font-['JetBrains_Mono'] text-[#00c8ff]">{f(full.indices.lstProxy, 1, "°C")}</span>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-[#6d8698]">{textValue(full.indices.methodology)}</p>
       </section>
 
       <section className="card p-4">

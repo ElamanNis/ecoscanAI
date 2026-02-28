@@ -108,7 +108,7 @@ export default function HeroSection() {
 
         <div className="mt-12 grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="card p-4 text-left">
-            <p className="font-['JetBrains_Mono'] text-2xl font-bold text-[#00c8ff]">{values.ha.toLocaleString()}+</p>
+            <p className="font-['JetBrains_Mono'] text-2xl font-bold text-[#00c8ff]">{values.ha.toLocaleString("en-US")}+</p>
             <p className="text-xs text-[#7f97a8]">{t("statHa")}</p>
           </div>
           <div className="card p-4 text-left">
@@ -128,4 +128,3 @@ export default function HeroSection() {
     </section>
   );
 }
-

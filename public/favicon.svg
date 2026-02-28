@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="bg" cx="35%" cy="30%" r="85%">
+      <stop offset="0%" stop-color="#00c8ff" stop-opacity="0.35"/>
+      <stop offset="55%" stop-color="#08121d" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#02070d" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00c8ff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#00ff87" stop-opacity="0.95"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Transparent corners -> circular-looking tab icon -->
+  <circle cx="64" cy="64" r="58" fill="url(#bg)"/>
+
+  <!-- Orbit ring -->
+  <path
+    d="M 20 70 C 32 28, 96 28, 108 70 C 116 96, 88 112, 64 112 C 40 112, 12 96, 20 70 Z"
+    fill="none"
+    stroke="url(#ring)"
+    stroke-width="4"
+    stroke-opacity="0.75"
+  />
+  <circle cx="101" cy="52" r="4" fill="#00c8ff" filter="url(#glow)"/>
+
+  <!-- Monogram -->
+  <g filter="url(#glow)">
+    <text x="64" y="74" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto" font-size="54" font-weight="800" fill="#eaf6ff">
+      ES
+    </text>
+  </g>
+</svg>

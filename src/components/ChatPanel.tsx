@@ -52,7 +52,7 @@ export default function ChatPanel({ result }: { result: AnalysisResult | null })
           history: messages.slice(-8),
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({} as any));
       if (!res.ok) throw new Error(data.reply || data.error || "Chat failed");
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply || "No response." }]);
     } catch (e) {

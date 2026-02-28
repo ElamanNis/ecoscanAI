@@ -4,12 +4,20 @@ const groqKey = process.env.GROQ_API_KEY || "";
 const groqModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
 const hfKey = process.env.HUGGINGFACE_API_KEY || "";
 const hfModel = process.env.HF_TEXT_MODEL || "HuggingFaceH4/zephyr-7b-beta";
+const hfEndpointBase = process.env.HF_ENDPOINT || "https://router.huggingface.co";
 
 const hf = hfKey ? new HfInference(hfKey) : null;
 
 type GroqChatResponse = {
   choices?: Array<{ message?: { content?: string } }>;
 };
+
+function buildHfEndpointUrl(model: string): string {
+  const base = hfEndpointBase.replace(/\/+$/, "");
+  if (base.includes("/models/")) return base;
+  if (base.endsWith("/models")) return `${base}/${model}`;
+  return `${base}/models/${model}`;
+}
 
 async function callGroq(messages: Array<{ role: "system" | "user" | "assistant"; content: string }>): Promise<string> {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -82,6 +90,7 @@ export async function generateJsonWithFallback(prompt: string): Promise<{
   if (hf) {
     try {
       const result = await hf.textGeneration({
+        endpointUrl: buildHfEndpointUrl(hfModel),
         model: hfModel,
         inputs: prompt,
         parameters: {
@@ -152,6 +161,7 @@ User: ${message}
 Assistant:`;
 
       const result = await hf.textGeneration({
+        endpointUrl: buildHfEndpointUrl(hfModel),
         model: hfModel,
         inputs: prompt,
         parameters: {

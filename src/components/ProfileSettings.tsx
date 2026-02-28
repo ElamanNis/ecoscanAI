@@ -12,8 +12,17 @@ export default function ProfileSettings({ fullName }: { fullName: string }) {
     setError(null);
     setSaving(true);
     const supabase = createClientComponentClient();
-    const { data: sessionRes } = await supabase.auth.getSession();
-    const uid = sessionRes.session?.user?.id;
+    const sessionRes = await supabase.auth.getSession();
+    if (sessionRes.error) {
+      const msg = String(sessionRes.error.message || "").toLowerCase();
+      if (msg.includes("invalid refresh token") || msg.includes("refresh token not found")) {
+        await supabase.auth.signOut({ scope: "local" as any }).catch(() => {});
+      }
+      setSaving(false);
+      setError(sessionRes.error.message);
+      return;
+    }
+    const uid = sessionRes.data.session?.user?.id;
     if (!uid) {
       setSaving(false);
       setError("Нет сессии");

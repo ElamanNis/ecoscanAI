@@ -19,7 +19,8 @@ function isAnalysisResult(payload: unknown): payload is AnalysisResult {
 
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = request.headers.get("authorization")?.replace("Bearer ", "").trim() || null;
+    const auth = request.headers.get("authorization") || "";
+    const apiKey = auth.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || null;
     const client = await resolveApiClient(apiKey);
     if (!client) {
       const supabase = getSupabaseServer();

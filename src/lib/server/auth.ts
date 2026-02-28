@@ -3,5 +3,10 @@ import { getApiClientByKey } from "@/lib/server/db";
 
 export async function resolveApiClient(apiKey: string | null): Promise<ApiClientContext | null> {
   if (!apiKey) return null;
-  return getApiClientByKey(apiKey);
+  try {
+    return await getApiClientByKey(apiKey);
+  } catch (err) {
+    console.error("resolveApiClient failed:", err);
+    return null;
+  }
 }

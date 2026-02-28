@@ -10,6 +10,8 @@ export type Database = {
           full_name: string | null;
           subscription_tier: SubscriptionTier;
           api_usage_count: number;
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
           created_at: string | null;
           updated_at: string | null;
         };
@@ -18,11 +20,15 @@ export type Database = {
           full_name?: string | null;
           subscription_tier?: SubscriptionTier;
           api_usage_count?: number;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
         };
         Update: {
           full_name?: string | null;
           subscription_tier?: SubscriptionTier;
           api_usage_count?: number;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
           updated_at?: string | null;
         };
       };

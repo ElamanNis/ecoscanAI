@@ -35,6 +35,7 @@ export interface AnalysisResult {
   alerts: Alert[];
   spectralBands: SpectralBand[];
   modelInfo: ModelInfo;
+  meta?: ApiResponseMeta;
   geminiSummary?: string;
   geminiInsights?: string[];
   geminiRecommendations?: string[];
@@ -101,6 +102,13 @@ export interface PlanResponse {
   horizonMonths: number;
   summary: string;
   plans: MonthlyActionPlan[];
+  meta?: ApiResponseMeta;
+}
+
+export interface ApiResponseMeta {
+  apiVersion: string;
+  plan: "free" | "pro" | "enterprise";
+  remainingPerMinute: number | null;
 }
 
 export interface ApiClientContext {
