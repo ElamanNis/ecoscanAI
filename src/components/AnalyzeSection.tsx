@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import ChatPanel from "./ChatPanel";
 import ResultsPanel from "./ResultsPanel";
 import { useI18n } from "@/lib/i18n";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import AuthModal from "./AuthModal";
 
 const MapComponent = dynamic(() => import("./MapComponent"), { ssr: false });
 
@@ -39,6 +41,25 @@ export default function AnalyzeSection() {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  const [unlocked, setUnlocked] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authTab, setAuthTab] = useState<"login" | "register">("register");
+
+  useEffect(() => {
+    const supabase = createClientComponentClient();
+    supabase.auth.getSession().then(async (res) => {
+      if (res.error) {
+        const msg = String(res.error.message || "").toLowerCase();
+        if (msg.includes("invalid refresh token") || msg.includes("refresh token not found")) {
+          await supabase.auth.signOut({ scope: "local" as any }).catch(() => {});
+        }
+        setUnlocked(false);
+        return;
+      }
+      setUnlocked(Boolean(res.data.session?.user));
+    }).catch(() => {});
   }, []);
   const [limit, setLimit] = useState<{ used: number; max: number } | null>(null);
   useEffect(() => {
@@ -86,6 +107,16 @@ export default function AnalyzeSection() {
   }, []);
 
   const run = async () => {
+    if (!unlocked) {
+      setAuthTab("register");
+      setAuthOpen(true);
+      return;
+    }
+    if (mode === "draw" && !coords) {
+      setError("Finish the polygon: add 3+ points and double‑click to close (or switch to Click mode).");
+      setTab("results");
+      return;
+    }
     const steps = [t("stepFetch"), t("stepCompute"), t("stepAi"), t("stepFinal")];
     setError(null);
     setResult(null);
@@ -111,8 +142,11 @@ export default function AnalyzeSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(req),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Analyze request failed");
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("Please sign in to run an analysis.");
+        throw new Error(data.error || "Analyze request failed");
+      }
       setResult(data);
       if (data.full) {
         localStorage.setItem("ecoscan_latest_full", JSON.stringify(data.full));
@@ -128,6 +162,11 @@ export default function AnalyzeSection() {
 
   const generatePlan = async () => {
     if (!result || planLoading) return;
+    if (!unlocked) {
+      setAuthTab("login");
+      setAuthOpen(true);
+      return;
+    }
     setPlanLoading(true);
     setPlanError(null);
     try {
@@ -135,7 +174,6 @@ export default function AnalyzeSection() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer eco_pro_demo_key",
         },
         body: JSON.stringify({
           analysis: result,
@@ -143,8 +181,11 @@ export default function AnalyzeSection() {
           goal: planGoal.trim() || undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Plan request failed");
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("Please sign in (or provide an API key) to generate a plan.");
+        throw new Error(data.error || "Plan request failed");
+      }
       setPlan(data);
     } catch (e) {
       setPlanError(e instanceof Error ? e.message : "Plan generation failed");
@@ -187,6 +228,51 @@ export default function AnalyzeSection() {
           </p>
         </div>
 
+        <AuthModal
+          open={authOpen}
+          defaultTab={authTab}
+          onClose={() => setAuthOpen(false)}
+          onAuthed={() => {
+            setUnlocked(true);
+            fetch("/api/me")
+              .then((r) => (r.ok ? r.json() : null))
+              .then((data) => {
+                if (data && typeof data.monthlyLimit === "number") setLimit({ used: data.monthlyUsage || 0, max: data.monthlyLimit });
+              })
+              .catch(() => {});
+          }}
+        />
+
+        {!unlocked && (
+          <div className="mx-auto max-w-xl">
+            <div className="card p-6 text-center">
+              <p className="font-['JetBrains_Mono'] text-xs uppercase tracking-[0.2em] text-[#00c8ff]">Start</p>
+              <p className="mt-2 text-sm text-[#cde0ea]">Чтобы запустить анализ, сначала войдите или зарегистрируйтесь.</p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button
+                  className="btn-primary py-2 text-sm"
+                  onClick={() => {
+                    setAuthTab("register");
+                    setAuthOpen(true);
+                  }}
+                >
+                  Регистрация
+                </button>
+                <button
+                  className="btn-ghost py-2 text-sm"
+                  onClick={() => {
+                    setAuthTab("login");
+                    setAuthOpen(true);
+                  }}
+                >
+                  Вход
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {unlocked && (
         <div className="grid gap-6 xl:grid-cols-5">
           <div className="space-y-4 xl:col-span-3">
             <div className="flex items-center justify-between">
@@ -350,6 +436,7 @@ export default function AnalyzeSection() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </section>
   );

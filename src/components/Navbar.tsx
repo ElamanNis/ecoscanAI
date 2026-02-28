@@ -13,7 +13,16 @@ export default function Navbar() {
   const [tier, setTier] = useState<string | null>(null);
   useEffect(() => {
     const supabase = createClientComponentClient();
-    supabase.auth.getSession().then((res) => {
+    supabase.auth.getSession().then(async (res) => {
+      if (res.error) {
+        const msg = String(res.error.message || "").toLowerCase();
+        if (msg.includes("invalid refresh token") || msg.includes("refresh token not found")) {
+          await supabase.auth.signOut({ scope: "local" as any }).catch(() => {});
+        }
+        setLoggedIn(false);
+        setTier(null);
+        return;
+      }
       const ok = Boolean(res.data.session?.user);
       setLoggedIn(ok);
       if (ok) {

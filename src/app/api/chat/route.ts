@@ -8,27 +8,6 @@ export async function POST(request: NextRequest) {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    // #region agent log
-    fetch("http://127.0.0.1:7425/ingest/6e171a64-100c-471f-a0f7-68ec2fd33586", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "7da2b2",
-      },
-      body: JSON.stringify({
-        sessionId: "7da2b2",
-        runId: "initial",
-        hypothesisId: "H3",
-        location: "src/app/api/chat/route.ts:POST",
-        message: "chat route session check",
-        data: {
-          hasSession: !!session,
-          hasUser: !!session?.user,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (!session?.user) {
       return NextResponse.json({ reply: "Пожалуйста, войдите чтобы использовать чат-помощника." }, { status: 401 });
     }

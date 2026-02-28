@@ -81,7 +81,8 @@ Return exactly ${months} plan items.`;
     if (!Array.isArray(parsed.plans) || parsed.plans.length === 0) return fallbackPlan(analysis, months, goal);
 
     const normalized = parsed.plans.slice(0, months).map((item, idx) => ({
-      month: item.month || nextMonths(months)[idx],
+      // Always use server-generated month labels so the UI doesn't show stale years like "March 2024".
+      month: nextMonths(months)[idx],
       objective: item.objective || "Improve ecosystem stability",
       actions: Array.isArray(item.actions) ? item.actions.slice(0, 3) : ["Monitor NDVI weekly", "Adjust irrigation", "Optimize nutrient usage"],
       kpi: item.kpi || "Improve NDVI and reduce stressed area",

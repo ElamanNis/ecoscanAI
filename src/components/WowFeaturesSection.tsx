@@ -84,8 +84,8 @@ export default function WowFeaturesSection() {
 
           <div className="card p-4">
             <p className="font-['JetBrains_Mono'] text-xs uppercase tracking-[0.2em] text-[#00c8ff]">Global Counters</p>
-            <p className="mt-2 text-sm text-[#cde0ea]">ha analyzed: {counters.ha.toLocaleString()}</p>
-            <p className="text-sm text-[#cde0ea]">active alerts: {counters.alerts.toLocaleString()}</p>
+            <p className="mt-2 text-sm text-[#cde0ea]">ha analyzed: {counters.ha.toLocaleString("en-US")}</p>
+            <p className="text-sm text-[#cde0ea]">active alerts: {counters.alerts.toLocaleString("en-US")}</p>
             <p className="text-sm text-[#cde0ea]">countries monitored: {counters.countries}</p>
           </div>
 

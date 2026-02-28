@@ -240,10 +240,29 @@ export async function POST(req: NextRequest) {
     const address = ((rev.data as { address?: Record<string, string> })?.address) || {};
     const elevation = ((elev.data as { results?: Array<{ elevation?: number }> })?.results?.[0]?.elevation) ?? null;
 
-    const gemPrompt =
-      `Use only these real values and return JSON with keys headline,summary,insights,recommendations,agriAdvisory,climateContext,forecast7dSummary,waterResourcesSummary.
-Location: ${displayName}. NDVI=${idx.ndvi}, EVI=${idx.evi}, SAVI=${idx.savi}, NDWI=${idx.ndwi}, drought=${idx.droughtIndex}, fire=${idx.fireRisk}, flood=${idx.floodRisk}, risk=${riskLevel}(${riskScore}/100), tempAvg=${tempAvg}, precipTotal=${precipTotal}, humidity=${humidityAvg}, soil=${cur.soil_moisture_0_to_1cm ?? "n/a"}, weeklyPrecip=${weeklyPrecip}, weeklyET0=${weeklyEt0}, scenes=${scenes.length}, avgCloud=${avgCloud}`
-    ;
+    const gemPrompt = `You are EcoScan AI, an expert in satellite/climate risk and agronomy.
+Use ONLY the numeric values provided below (do not invent numbers, do not mention APIs). Respond ONLY valid JSON.
+
+Return JSON with keys:
+- headline: short, <= 12 words
+- summary: detailed, 6-10 sentences, practical and specific to the location
+- insights: 8-12 bullet-like strings, each must reference at least one provided number
+- recommendations: 10-14 items, each item is {priority: critical|high|medium|low, category, action, timeframe}
+- agriAdvisory: object with soilCondition, irrigationNeeded(boolean), irrigationAmount, bestCrops[], avoidCrops[], plantingWindow, harvestOutlook, fertilizerAdvice, pestRisk
+- climateContext: 3-6 sentences
+- forecast7dSummary: 3-6 sentences (water balance, ET0 vs precipitation, wind)
+- waterResourcesSummary: 3-6 sentences (NDWI + soil moisture + precipitation)
+
+DATA:
+Location: ${displayName}
+NDVI=${idx.ndvi}, EVI=${idx.evi}, SAVI=${idx.savi}, NDWI=${idx.ndwi}
+DroughtIndex=${idx.droughtIndex}, FireRisk=${idx.fireRisk}/100, FloodRisk=${idx.floodRisk}/100
+OverallRisk=${riskLevel} (${riskScore}/100)
+TempAvg=${tempAvg}C, TempMax=${tempMax}C, TempMin=${tempMin}C
+PrecipTotal=${precipTotal}mm, HumidityAvg=${humidityAvg}%, WindAvg=${windAvgKmh}km/h
+SoilMoisture0to1cm=${cur.soil_moisture_0_to_1cm ?? "n/a"}
+WeeklyPrecip=${weeklyPrecip}mm, WeeklyET0=${weeklyEt0}mm
+SatelliteScenes=${scenes.length}, AvgCloudCover=${avgCloud}%`;
     const gem = await generateJsonWithFallback(gemPrompt);
 
     const alerts: Array<{ type: string; severity: string; message: string }> = [];
@@ -437,18 +456,20 @@ Location: ${displayName}. NDVI=${idx.ndvi}, EVI=${idx.evi}, SAVI=${idx.savi}, ND
       full,
     };
 
-    await (supabase as any).from("scans_history").insert({
-      user_id: userId,
-      region: responsePayload.region,
-      ndvi: responsePayload.ndvi,
-      ndvi_category: responsePayload.ndviCategory,
-      analysis_type: responsePayload.analysisType,
-      payload: responsePayload,
-    });
-    await (supabase as any).rpc("increment_api_usage", { user_id_arg: userId }).catch(async () => {
-      const current = ((profile as any)?.api_usage_count || 0) as number;
-      await (supabase as any).from("profiles").update({ api_usage_count: current + 1 }).eq("id", userId);
-    });
+    try {
+      await (supabase as any).from("scans_history").insert({
+        user_id: userId,
+        region: responsePayload.region,
+        ndvi: responsePayload.ndvi,
+        ndvi_category: responsePayload.ndviCategory,
+        analysis_type: responsePayload.analysisType,
+        payload: responsePayload,
+      });
+    } catch (err) {
+      console.error("Failed to insert scans_history:", err);
+    }
+
+    // usage counters are derived from scans_history for reliability
 
     return NextResponse.json(responsePayload);
   } catch (e) {

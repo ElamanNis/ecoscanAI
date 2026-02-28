@@ -74,6 +74,8 @@ export default function MapComponent({ onMapClick, onPolygonDraw, selectedCoords
               fillOpacity: 0.14,
               dashArray: "5 4",
             }).addTo(map);
+            // Update selected region/coords while drawing (so it doesn't stay on the default "Almaty").
+            onPolygonDraw([...drawPointsRef.current]);
           }
           return;
         }
